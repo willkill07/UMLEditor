@@ -1,0 +1,6 @@
+CompileFlags:
+  Add: [ -D__cpp_concepts=20240800 ]
+  Remove: [ -fmodules-ts, -fmodule-mapper*, -fdeps-format*, -Werror ]
+Diagnostics:
+  ClangTidy:
+    FastCheckFilter: None

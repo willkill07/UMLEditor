@@ -1,0 +1,6 @@
+.cache
+build
+*.json
+!CMakePresets.json
+*.xml
+packaging

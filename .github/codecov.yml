@@ -1,0 +1,60 @@
+coverage:
+  precision: 2
+  round: nearest
+  range: "80...100"
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 5
+        paths:
+          - "src"
+        branches:
+          - main
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+
+comment:
+  layout: "header, diff, flags, components"  # show component info in the PR comment
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        branches:
+          - "!main"
+  individual_components:
+    - component_id: cli
+      name: CLI
+      paths:
+        - src/cli/**
+    - component_id: commands
+      name: Commands
+      paths:
+        - src/commands/**
+    - component_id: model
+      name: Model
+      paths:
+        - src/model/**
+    - component_id: utils
+      name: Utilities
+      paths:
+        - src/utils/**
+    - component_id: headers
+      name: Header Files
+      paths:
+        - .*.hpp
+    - component_id: sources
+      name: Source Files
+      paths:
+        - .*.cpp
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: no
+      loop: no
+      method: no
+      macro: no

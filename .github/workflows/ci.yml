@@ -1,0 +1,235 @@
+name: UML
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Formatting Check
+      uses: jidicula/clang-format-action@v4.14.0
+      with:
+        clang-format-version: '18'
+        check-path: 'src'
+
+  test:
+    needs: format
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        cpp_compiler: [g++-14, clang++]
+        exclude:
+          - os: macos-15
+            cpp_compiler: g++-14
+          - os: ubuntu-24.04
+            cpp_compiler: clang++
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Software Dependencies (Linux)
+      if: ${{ matrix.os == 'ubuntu-24.04' }}
+      run: |
+        sudo apt install -y ninja-build libedit-dev
+
+    - name: Install Software Dependencies (macOS)
+      if: ${{ matrix.os == 'macos-15' }}
+      run: |
+        brew install ninja libedit
+    
+    - name: Configure, Build, and Test
+      run: |
+        CXX="${{ matrix.cpp_compiler }}" CMAKE_BUILD_TYPE=RelWithDebInfo cmake --workflow --preset Default
+
+  coverage:
+    needs: test
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Software Dependencies
+      run: |
+        sudo apt install -y ninja-build libedit-dev
+    - name: Configure, Build, and Test
+      run: |
+        CXX=g++-14 CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Coverage
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+    - name: Upload test results to Codecov
+      uses: codecov/test-results-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  cppcheck:
+    needs: format
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Software Dependencies
+      run: |
+        sudo apt install -y ninja-build libedit-dev cppcheck
+    - name: Configure
+      run: |
+        CXX=g++-14 CMAKE_BUILD_TYPE=RelWithDebInfo cmake --workflow --preset Default
+    - name: Run cppcheck
+      run: |
+        cppcheck --suppressions-list=cppcheck_suppressions.txt --project=build/compile_commands.json --enable=all --check-level=exhaustive --checkers-report=cppcheck.txt
+    - name: Output report
+      run: |
+        cat cppcheck.txt
+
+  sanitize:
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        cpp_compiler: [g++-14, clang++]
+        exclude:
+          - os: macos-15
+            cpp_compiler: g++-14
+          - os: ubuntu-24.04
+            cpp_compiler: clang++
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Software Dependencies (Linux)
+      if: ${{ matrix.os == 'ubuntu-24.04' }}
+      run: |
+        sudo apt install -y ninja-build libedit-dev
+    - name: Install Software Dependencies (macOS)
+      if: ${{ matrix.os == 'macos-15' }}
+      run: |
+        brew install ninja libedit
+    - name: Configure, Build, and Test
+      run: |
+        CXX="${{ matrix.cpp_compiler }}" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Sanitize
+
+  codeql:
+    needs: format
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Software Dependencies
+      run: |
+        sudo apt install -y ninja-build libedit-dev
+    - name: Configure
+      run: |
+        CXX=g++-14 CMAKE_BUILD_TYPE=Debug cmake --preset Default
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+      with:
+        languages: cpp
+        config-file: ./.github/codeql/codeql-config.yml
+    - name: Build
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: |
+        cmake --build --preset Default
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+  tidy:
+    needs: format
+    runs-on: macos-15
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Software Dependencies (macOS)
+      run: |
+        brew install ninja libedit llvm
+    - name: Configure, Build, and Test
+      run: |
+        CMAKE_BUILD_TYPE=RelWithDebInfo cmake --preset Default
+        find src -name \*pp -exec /opt/homebrew/opt/llvm/bin/clang-tidy -p build {} \+
+
+  release:
+    needs: [sanitize, coverage, codeql, cppcheck, tidy]
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Software Dependencies
+      run: |
+        sudo apt install -y ninja-build
+    - name: Configure
+      run: |
+        CMAKE_BUILD_TYPE=RelWithDebInfo cmake --preset Default
+    - name: Extract CMake Metadata
+      id: meta
+      run: |
+        version=$(awk -v FS='=' '/CMAKE_PROJECT_VERSION:/{ print $2 }' build/CMakeCache.txt)
+        sha=$(git rev-parse --short HEAD)
+        echo "tag=v$version-$sha" >> $GITHUB_OUTPUT
+    - name: Create Release
+      id: name
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        gh release create --draft "${{ steps.meta.outputs.tag }}" --title "UMLEditor ${{ steps.meta.outputs.tag }}"
+
+  upload:
+    needs: [release]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        cpp_compiler: [g++-14, clang++]
+        exclude:
+          - os: macos-15
+            cpp_compiler: g++-14
+          - os: ubuntu-24.04
+            cpp_compiler: clang++
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Software Dependencies (Linux)
+      if: ${{ matrix.os == 'ubuntu-24.04' }}
+      run: |
+        sudo apt install -y ninja-build libedit-dev
+
+    - name: Install Software Dependencies (macOS)
+      if: ${{ matrix.os == 'macos-15' }}
+      run: |
+        brew install ninja libedit
+    
+    - name: Package
+      run: |
+        CXX="${{ matrix.cpp_compiler }}" CMAKE_BUILD_TYPE=MinSizeRel cmake --workflow --preset Package
+
+    - name: Upload Packages
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        gh release upload ${{ needs.release.outputs.tag }} packaging/UMLEditor-*
+
+  publish:
+    needs: [release, upload]
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        gh release edit ${{ needs.release.outputs.tag }} --draft=false
+    - uses: eregon/keep-last-n-releases@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        n: 3
+        remove_tags_without_release: true

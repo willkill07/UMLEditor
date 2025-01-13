@@ -1,0 +1,171 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 26,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "Default",
+            "generator": "Ninja",
+            "binaryDir": "build",
+            "toolchainFile": "./cmake/platform/${hostSystemName}.cmake"
+        },
+        {
+            "name": "Coverage",
+            "inherits": "Default",
+            "cacheVariables": {
+                "ENABLE_COVERAGE": "On"
+            }
+        },
+        {
+            "name": "Sanitize",
+            "inherits": "Default",
+            "cacheVariables": {
+                "ENABLE_SANITIZERS": "On"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Default",
+            "configurePreset": "Default",
+            "verbose": true
+        },
+        {
+            "name": "Coverage",
+            "configurePreset": "Coverage",
+            "verbose": true
+        },
+        {
+            "name": "Sanitize",
+            "configurePreset": "Sanitize",
+            "verbose": true
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "Default",
+            "configurePreset": "Default",
+            "output": {
+                "outputOnFailure": true,
+                "verbosity": "extra"
+            },
+            "execution": {
+                "noTestsAction": "ignore",
+                "stopOnFailure": true
+            }
+        },
+        {
+            "name": "Coverage",
+            "configurePreset": "Coverage",
+            "output": {
+                "outputOnFailure": true,
+                "verbosity": "extra"
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
+            }
+        },
+        {
+            "name": "Sanitize",
+            "configurePreset": "Sanitize",
+            "output": {
+                "outputOnFailure": true,
+                "verbosity": "extra"
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
+            },
+            "environment": {
+                "ASAN_OPTIONS": "detect_invalid_pointer_pairs=2"
+            }
+        }
+    ],
+    "packagePresets": [
+        {
+            "name": "Default",
+            "configurePreset": "Default",
+            "inheritConfigureEnvironment": true,
+            "output": {
+                "verbose": true
+            },
+            "packageName": "UMLEditor",
+            "vendorName": "Will Killian",
+            "packageDirectory": "${sourceDir}/packaging"
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "Default",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "Default"
+                },
+                {
+                    "type": "build",
+                    "name": "Default"
+                },
+                {
+                    "type": "test",
+                    "name": "Default"
+                }
+            ]
+        },
+        {
+            "name": "Coverage",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "Coverage"
+                },
+                {
+                    "type": "build",
+                    "name": "Coverage"
+                },
+                {
+                    "type": "test",
+                    "name": "Coverage"
+                }
+            ]
+        },
+        {
+            "name": "Sanitize",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "Sanitize"
+                },
+                {
+                    "type": "build",
+                    "name": "Sanitize"
+                },
+                {
+                    "type": "test",
+                    "name": "Sanitize"
+                }
+            ]
+        },
+        {
+            "name": "Package",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "Default"
+                },
+                {
+                    "type": "build",
+                    "name": "Default"
+                },
+                {
+                    "type": "package",
+                    "name": "Default"
+                }
+            ]
+        }
+    ]
+}
