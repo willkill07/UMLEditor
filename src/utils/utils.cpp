@@ -108,19 +108,19 @@ Result<int> IntFromString(std::string_view s) {
 
 DOCTEST_TEST_SUITE("utils") {
   DOCTEST_TEST_CASE("utils::Alpha") {
-    for (char c = -1; c < 127;) {
+    for (auto c = static_cast<char>(-1); c < 127;) {
       ++c;
       CHECK_EQ((('A' <= c and c <= 'Z') or ('a' <= c and c <= 'z') or (c == '_')), Alpha(c));
     }
   }
   DOCTEST_TEST_CASE("utils::Digit") {
-    for (char c = -1; c < 127;) {
+    for (auto c = static_cast<char>(-1); c < 127;) {
       ++c;
       CHECK_EQ(('0' <= c and c <= '9'), Digit(c));
     }
   }
   DOCTEST_TEST_CASE("utils::AlNum") {
-    for (char c = -1; c < 127;) {
+    for (auto c = static_cast<char>(-1); c < 127;) {
       ++c;
       CHECK_EQ((('A' <= c and c <= 'Z') or ('a' <= c and c <= 'z') or (c == '_') or ('0' <= c and c <= '9')), AlNum(c));
     }

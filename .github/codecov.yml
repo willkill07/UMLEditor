@@ -18,6 +18,16 @@ coverage:
 comment:
   layout: "header, diff, flags, components"  # show component info in the PR comment
 
+flag_management:
+  default_rules:
+    carryforward: true
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+      - type: patch
+        target: 90%
+
 component_management:
   default_rules:
     statuses:

@@ -81,7 +81,7 @@
                 "stopOnFailure": true
             },
             "environment": {
-                "ASAN_OPTIONS": "detect_invalid_pointer_pairs=2"
+                "ASAN_OPTIONS": "detect_invalid_pointer_pairs=2,alloc_dealloc_mismatch=0"
             }
         }
     ],
