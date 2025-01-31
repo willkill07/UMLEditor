@@ -9,8 +9,10 @@ on:
 jobs:
   format:
     runs-on: ubuntu-24.04
+
     steps:
     - uses: actions/checkout@v4
+
     - name: Formatting Check
       uses: jidicula/clang-format-action@v4.14.0
       with:
@@ -21,53 +23,71 @@ jobs:
     needs: format
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
         cpp_compiler: [g++-14, clang++]
-        exclude:
-          - os: macos-15
-            cpp_compiler: g++-14
-          - os: ubuntu-24.04
-            cpp_compiler: clang++
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Software Dependencies (Linux)
-      if: ${{ matrix.os == 'ubuntu-24.04' }}
+    - name: Install Software Dependencies
       run: |
-        sudo apt install -y ninja-build libedit-dev
-
-    - name: Install Software Dependencies (macOS)
-      if: ${{ matrix.os == 'macos-15' }}
-      run: |
-        brew install ninja libedit
+        if [[ "${{runner.os}}" == "Linux" ]]; then
+          sudo apt update -y
+          sudo apt install -y ninja-build libedit-dev libc++-18-dev libc++abi-18-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install  /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+        else
+          brew update
+          brew install ninja libedit
+        fi
     
     - name: Configure, Build, and Test
       run: |
-        CXX="${{ matrix.cpp_compiler }}" CMAKE_BUILD_TYPE=RelWithDebInfo cmake --workflow --preset Default
+        CXX="${{matrix.cpp_compiler}}" CMAKE_BUILD_TYPE=RelWithDebInfo cmake --workflow --preset Default
 
   coverage:
     needs: test
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
+        cpp_compiler: [g++-14, clang++]
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Install Software Dependencies
       run: |
-        sudo apt install -y ninja-build libedit-dev
+        if [[ "${{runner.os}}" == "Linux" ]]; then
+          sudo apt update -y
+          sudo apt install -y ninja-build libedit-dev libc++-18-dev libc++abi-18-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install  /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+        elif [[ "${{runner.os}}" == "macOS" ]]; then
+          brew update
+          brew install ninja libedit
+        fi
+    
     - name: Configure, Build, and Test
       run: |
-        CXX=g++-14 CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Coverage
+        CXX="${{matrix.cpp_compiler}}" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Coverage
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        flags: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}
+        name: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}-coverage
+
     - name: Upload test results to Codecov
       uses: codecov/test-results-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        flags: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}
+        name: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}-coverage
 
   cppcheck:
     needs: format
@@ -75,15 +95,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Install Software Dependencies
       run: |
+        sudo apt update -y
         sudo apt install -y ninja-build libedit-dev cppcheck
+
     - name: Configure
       run: |
         CXX=g++-14 CMAKE_BUILD_TYPE=RelWithDebInfo cmake --workflow --preset Default
+
     - name: Run cppcheck
       run: |
         cppcheck --suppressions-list=cppcheck_suppressions.txt --project=build/compile_commands.json --enable=all --check-level=exhaustive --checkers-report=cppcheck.txt
+
     - name: Output report
       run: |
         cat cppcheck.txt
@@ -92,85 +117,115 @@ jobs:
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
         cpp_compiler: [g++-14, clang++]
         exclude:
           - os: macos-15
             cpp_compiler: g++-14
-          - os: ubuntu-24.04
-            cpp_compiler: clang++
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install Software Dependencies (Linux)
-      if: ${{ matrix.os == 'ubuntu-24.04' }}
+
+    - name: Install Software Dependencies
       run: |
-        sudo apt install -y ninja-build libedit-dev
-    - name: Install Software Dependencies (macOS)
-      if: ${{ matrix.os == 'macos-15' }}
-      run: |
-        brew install ninja libedit
+        if [[ "${{runner.os}}" == "Linux" ]]; then
+          sudo apt update -y
+          sudo apt install -y ninja-build libc++-18-dev libc++abi-18-dev libedit-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo update-alternatives --install  /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+        elif [[ "${{runner.os}}" == "macOS" ]]; then
+          brew update
+          brew install ninja libedit
+        fi
+    
     - name: Configure, Build, and Test
       run: |
-        CXX="${{ matrix.cpp_compiler }}" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Sanitize
+        CXX="${{matrix.cpp_compiler}}" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Sanitize
 
   codeql:
     needs: format
     runs-on: ubuntu-24.04
+
     steps:
     - uses: actions/checkout@v4
+
     - name: Install Software Dependencies
       run: |
+        sudo apt update -y
         sudo apt install -y ninja-build libedit-dev
+
     - name: Configure
       run: |
         CXX=g++-14 CMAKE_BUILD_TYPE=Debug cmake --preset Default
+
     - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: cpp
         config-file: ./.github/codeql/codeql-config.yml
+
     - name: Build
       # Execute the build.  You can specify a specific target with "--target <NAME>"
       run: |
         cmake --build --preset Default
+
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
 
   tidy:
     needs: format
     runs-on: macos-15
+
     steps:
     - uses: actions/checkout@v4
-    - name: Install Software Dependencies (macOS)
+
+    - name: Install Software Dependencies
       run: |
-        brew install ninja libedit llvm
+        if [[ "${{runner.os}}" == "Linux" ]]; then
+          sudo apt update -y
+          sudo apt install -y ninja-build libc++-18-dev libc++abi-18-dev clang-tidy-18 libedit-dev
+        elif [[ "${{runner.os}}" == "macOS" ]]; then
+          brew update
+          brew install ninja libedit llvm
+        fi
+    
     - name: Configure, Build, and Test
       run: |
-        CMAKE_BUILD_TYPE=RelWithDebInfo cmake --preset Default
-        find src -name \*pp -exec /opt/homebrew/opt/llvm/bin/clang-tidy -p build {} \+
+        if [[ "${{runner.os}}" == "Linux" ]]; then
+          CXX="clang++" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Default
+          find src -name \*pp -exec clang-tidy-18 -p build {} \+
+        elif [[ "${{runner.os}}" == "macOS" ]]; then
+          CXX="clang++" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Default
+          find src -name \*pp -exec /opt/homebrew/opt/llvm/bin/clang-tidy -p build {} \+
+        fi
 
   release:
     needs: [sanitize, coverage, codeql, cppcheck, tidy]
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
+
     steps:
     - uses: actions/checkout@v4
+
     - name: Install Software Dependencies
       run: |
+        sudo apt update -y
         sudo apt install -y ninja-build
+
     - name: Configure
       run: |
         CMAKE_BUILD_TYPE=RelWithDebInfo cmake --preset Default
+
     - name: Extract CMake Metadata
       id: meta
       run: |
         version=$(awk -v FS='=' '/CMAKE_PROJECT_VERSION:/{ print $2 }' build/CMakeCache.txt)
         sha=$(git rev-parse --short HEAD)
         echo "tag=v$version-$sha" >> $GITHUB_OUTPUT
+
     - name: Create Release
       id: name
       env:
@@ -185,25 +240,31 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-24.04, macos-15]
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
         cpp_compiler: [g++-14, clang++]
         exclude:
           - os: macos-15
             cpp_compiler: g++-14
           - os: ubuntu-24.04
             cpp_compiler: clang++
+          - os: ubuntu-24.04-arm
+            cpp_compiler: clang++
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install Software Dependencies (Linux)
-      if: ${{ matrix.os == 'ubuntu-24.04' }}
+      if: ${{ runner.os == 'Linux' }}
       run: |
-        sudo apt install -y ninja-build libedit-dev
+        sudo apt update -y
+        sudo apt install -y ninja-build libc++-18-dev libc++abi-18-dev libedit-dev
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
 
     - name: Install Software Dependencies (macOS)
-      if: ${{ matrix.os == 'macos-15' }}
+      if: ${{ runner.os == 'macOS' }}
       run: |
+        brew update
         brew install ninja libedit
     
     - name: Package
@@ -220,6 +281,7 @@ jobs:
   publish:
     needs: [release, upload]
     runs-on: ubuntu-24.04
+
     steps:
     - name: Release
       env:
@@ -227,6 +289,7 @@ jobs:
         GH_REPO: ${{ github.repository }}
       run: |
         gh release edit ${{ needs.release.outputs.tag }} --draft=false
+
     - uses: eregon/keep-last-n-releases@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
