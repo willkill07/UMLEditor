@@ -4,7 +4,8 @@ project(UMLEditor VERSION 4.0.0 LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_STANDARD_REQUIRED Yes)
+set(CMAKE_POSITION_INDEPENDENT_CODE On)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-stdlib=libc++)
@@ -33,11 +34,8 @@ message(STATUS "Adding support for sanitizers")
   add_compile_options(
     # universal options
     -O0
+    -g
     -fsanitize=address,undefined
-    # debugging symbols
-    $<$<CXX_COMPILER_ID:Clang>:-g>
-    $<$<CXX_COMPILER_ID:AppleClang>:-g>
-    $<$<CXX_COMPILER_ID:GNU>:-g3>
     # compiler-specific flags
     $<$<CXX_COMPILER_ID:Clang>:-fsanitize=integer,nullability,implicit-conversion,nullability>
     $<$<CXX_COMPILER_ID:AppleClang>:-fsanitize=integer,nullability,implicit-conversion,nullability>

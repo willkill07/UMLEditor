@@ -37,7 +37,7 @@ jobs:
           sudo apt update -y
           sudo apt install -y ninja-build libedit-dev libc++-18-dev libc++abi-18-dev
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
-          sudo update-alternatives --install  /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
         else
           brew update
           brew install ninja libedit
@@ -55,6 +55,26 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
         cpp_compiler: [g++-14, clang++]
+        include:
+          # specialization for platform + host based on os
+          - os: ubuntu-24.04
+            platform: linux
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+          - os: macos-15
+            platform: macos
+          # specialization for gcov based on os + compiler
+          - cpp_compiler: g++-14
+            gcov_executable: gcov-14
+          - os: ubuntu-24.04
+            cpp_compiler: clang++
+            gcov_executable: llvm-cov-wrapper
+          - os: ubuntu-24.04-arm
+            cpp_compiler: clang++
+            gcov_executable: llvm-cov-wrapper
+          - os: macos-15
+            cpp_compiler: clang++
+            gcov_executable: gcov
 
     steps:
     - uses: actions/checkout@v4
@@ -63,9 +83,11 @@ jobs:
       run: |
         if [[ "${{runner.os}}" == "Linux" ]]; then
           sudo apt update -y
-          sudo apt install -y ninja-build libedit-dev libc++-18-dev libc++abi-18-dev
+          sudo apt install -y ninja-build libedit-dev libc++-18-dev libc++abi-18-dev llvm-18
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
-          sudo update-alternatives --install  /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+          echo '#!/bin/bash:llvm-cov-18 gcov $@' | tr ':' '\n' | sudo tee /usr/bin/llvm-cov-wrapper >/dev/null
+          sudo chmod a+rx /usr/bin/llvm-cov-wrapper
         elif [[ "${{runner.os}}" == "macOS" ]]; then
           brew update
           brew install ninja libedit
@@ -75,17 +97,25 @@ jobs:
       run: |
         CXX="${{matrix.cpp_compiler}}" CMAKE_BUILD_TYPE=Debug cmake --workflow --preset Coverage
 
+    - name: Create Coverage Reports
+      run: |
+        find build -name \*.gcno -exec ${{ matrix.gcov_executable }} -pb {} \+
+        find build -name \*.gcov
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        os: ${{ matrix.platform }}
         flags: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}
         name: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}-coverage
+        gcov_executable: ${{ matrix.gcov_executable }}
 
     - name: Upload test results to Codecov
       uses: codecov/test-results-action@v1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        os: ${{ matrix.platform }}
         flags: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}
         name: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.cpp_compiler }}-coverage
 
@@ -134,7 +164,7 @@ jobs:
           sudo apt update -y
           sudo apt install -y ninja-build libc++-18-dev libc++abi-18-dev libedit-dev
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
-          sudo update-alternatives --install  /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100
         elif [[ "${{runner.os}}" == "macOS" ]]; then
           brew update
           brew install ninja libedit
@@ -241,31 +271,26 @@ jobs:
       fail-fast: true
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15]
-        cpp_compiler: [g++-14, clang++]
-        exclude:
-          - os: macos-15
-            cpp_compiler: g++-14
+        include:
           - os: ubuntu-24.04
-            cpp_compiler: clang++
+            cpp_compiler: g++-14
           - os: ubuntu-24.04-arm
+            cpp_compiler: g++-14
+          - os: macos-15
             cpp_compiler: clang++
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Software Dependencies (Linux)
-      if: ${{ runner.os == 'Linux' }}
+    - name: Install Software Dependencies
       run: |
-        sudo apt update -y
-        sudo apt install -y ninja-build libc++-18-dev libc++abi-18-dev libedit-dev
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-14 100
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100
-
-    - name: Install Software Dependencies (macOS)
-      if: ${{ runner.os == 'macOS' }}
-      run: |
-        brew update
-        brew install ninja libedit
+        if [[ "${{runner.os}}" == "Linux" ]]; then
+          sudo apt update -y
+        sudo apt install -y ninja-build libedit-dev
+        elif [[ "${{runner.os}}" == "macOS" ]]; then
+          brew update
+          brew install ninja libedit
+        fi
     
     - name: Package
       run: |

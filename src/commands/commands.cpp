@@ -10,7 +10,6 @@
 #include "utils/utils.hpp"
 
 #include <cstdio>
-#include <unistd.h>
 
 #include <doctest/doctest.h>
 
